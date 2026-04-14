@@ -33,6 +33,7 @@
 #include <sys/un.h>
 #include <sys/wait.h>
 #include <time.h>
+#include <sys/resource.h>
 #include <unistd.h>
 
 #include "monitor_ioctl.h"
@@ -456,7 +457,8 @@ static int run_supervisor(const char *rootfs)
 
             id[0] = rootfs[0] = command[0] = '\0';
 
-            sscanf(buffer, "%d %s %s %s", &cmd, id, rootfs, command);
+            int nice_val = 0;
+	    sscanf(buffer, "%d %s %s %s %d", &cmd, id, rootfs, command, &nice_val);
 
             // START
             if (cmd == CMD_START) {
@@ -476,12 +478,18 @@ if (pid == 0) {
     dup2(pipefd[1], STDERR_FILENO);
     close(pipefd[1]);
 
+    nice(nice_val);
+    printf("[CHILD] nice=%d applied\n", nice_val);
+
     chroot(rootfs);
     chdir("/");
 
     mount("proc", "/proc", "proc", 0, NULL);
 
     char *args[] = {command, NULL};
+    
+
+
     execvp(command, args);
 
     perror("exec");
@@ -492,6 +500,26 @@ if (pid == 0) {
 close(pipefd[1]);
 
                 printf("[SUPERVISOR] Started PID %d\n", pid);
+                int fd = open("/dev/container_monitor", O_RDWR);
+		if (fd < 0) {
+    			perror("open /dev/container_monitor");
+	} else {
+		    struct monitor_request req;
+		    memset(&req, 0, sizeof(req));
+		
+		    req.pid = pid;
+		    req.soft_limit_bytes = DEFAULT_SOFT_LIMIT;
+		    req.hard_limit_bytes = DEFAULT_HARD_LIMIT;
+		    strncpy(req.container_id, id, sizeof(req.container_id) - 1);
+		
+		    if (ioctl(fd, MONITOR_REGISTER, &req) < 0) {
+		        perror("ioctl MONITOR_REGISTER");
+		    } else {
+		        printf("[SUPERVISOR] Registered %s with monitor\n", id);
+ 		   }
+
+    close(fd);
+}
                 mkdir(LOG_DIR, 0777);
 
 char log_path[256];
@@ -595,11 +623,12 @@ static int send_control_request(const control_request_t *req)
 
     char msg[CONTROL_MESSAGE_LEN];
 
-    snprintf(msg, sizeof(msg), "%d %s %s %s",
-             req->kind,
-             req->container_id,
-             req->rootfs,
-             req->command);
+    snprintf(msg, sizeof(msg), "%d %s %s %s %d",
+         req->kind,
+         req->container_id,
+         req->rootfs,
+         req->command,
+         req->nice_value);
 
     write(sock, msg, strlen(msg));
 
