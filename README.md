@@ -120,6 +120,7 @@ sudo rmmod monitor
 
 ### 2. Metadata tracking (`ps`)
 
+<img width="291" height="75" alt="image" src="https://github.com/user-attachments/assets/90ac9585-acc2-438e-9b33-71311df48e25" />
 <img width="940" height="146" alt="image" src="https://github.com/user-attachments/assets/59f3dae3-cb82-4bab-a002-d6ce4193af87" />
 <img width="940" height="156" alt="image" src="https://github.com/user-attachments/assets/7a4fa727-fdf4-4a7b-87b7-b972252f86b7" />
 
